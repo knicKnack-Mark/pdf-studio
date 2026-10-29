@@ -676,3 +676,56 @@ button:focus-visible, input:focus-visible {
   font-size: 10px;
   line-height: 1.6;
 }
+
+
+
+.editor-control {
+  margin-top: 12px;
+}
+
+.editor-control input[type="range"] {
+  display: block;
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #0b121e;
+}
+
+.color-picker-row input[type="color"] {
+  width: 28px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+.color-picker-row span {
+  color: #c4d0e1;
+  font-size: 11px;
+}
+
+.cover-mark {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  padding: 0;
+  background: #fff;
+  color: #111827;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  overflow: hidden;
+  pointer-events: none;
+}
