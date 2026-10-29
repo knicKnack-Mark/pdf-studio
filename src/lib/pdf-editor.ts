@@ -116,15 +116,20 @@ export async function exportEditedPdf(
         width: (mark.width / 100) * width,
         height: (mark.height / 100) * height,
         color: rgb(1, 1, 1),
+        opacity: 1,
       });
 
       page.drawText(mark.replacement, {
-        x: (mark.x / 100) * width,
-        y: height - ((mark.y + mark.height) / 100) * height + 2,
+        x: (mark.x / 100) * width + 1,
+        y:
+          height -
+          ((mark.y + mark.height) / 100) * height +
+          Math.max(1, mark.fontSize * 0.15),
         size: mark.fontSize,
         font,
         color: hexToRgb(mark.color),
-        maxWidth: (mark.width / 100) * width,
+        maxWidth: Math.max(1, (mark.width / 100) * width - 2),
+        lineHeight: mark.fontSize * 1.2,
       });
     }
 
