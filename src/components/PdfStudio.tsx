@@ -80,6 +80,11 @@ export default function PdfStudio() {
   const [message, setMessage] = useState("");
   const [documentVersion, setDocumentVersion] = useState(0);
   const pageMarks = marks.filter((mark) => mark.page === page - 1);
+  const [editorFontSize, setEditorFontSize] = useState(11);
+  const [editorColor, setEditorColor] = useState("#111827");
+  const [coverWidth, setCoverWidth] = useState(10);
+  const [coverHeight, setCoverHeight] = useState(3);
+
 
   const renderPage = useCallback(async () => {
     const pdf = pdfRef.current;
@@ -117,17 +122,21 @@ export default function PdfStudio() {
           item.transform
         );
 
-        hits.push({
-          text: item.str,
-          x: (tx[4] / viewport.width) * 100,
-          y: ((tx[5] - item.height * (zoom / 100)) / viewport.height) * 100,
-          width: (item.width * (zoom / 100) / viewport.width) * 100,
-          height: Math.max(
-            1.5,
-            (item.height * (zoom / 100) / viewport.height) * 100
-          ),
-          page: page - 1,
-        });
+      const scale = viewport.scale;
+      const textHeight = Math.max(
+        Math.abs(tx[3]),
+        item.height * scale,
+        4
+      );
+
+      hits.push({
+        text: item.str,
+        x: (tx[4] / viewport.width) * 100,
+        y: ((tx[5] - textHeight) / viewport.height) * 100,
+        width: (item.width * scale / viewport.width) * 100,
+        height: (textHeight / viewport.height) * 100,
+        page: page - 1,
+      });
       }
 
       setTextItems(hits);
@@ -263,22 +272,46 @@ export default function PdfStudio() {
     setTool("select");
   };
 
+
   const selectTextForEditing = (hit: TextHit) => {
     setSelectedText(hit);
     setReplacementText(hit.text);
+
+    setEditorFontSize(
+      Math.max(6, Math.min(48, Math.round(
+        (hit.height / 100) * (pageSize.height || 800) * 0.8
+      )))
+    );
+
+    setCoverWidth(Math.min(100 - hit.x, Math.max(hit.width + 1, 10)));
+    setCoverHeight(Math.min(100 - hit.y, Math.max(hit.height + 0.8, 3)));
+
     setMessage(`Selected text: "${hit.text}"`);
     setError("");
   };
 
+
+
   const applyTextReplacement = () => {
     if (!selectedText) return;
 
-    const replacement = replacementText.trim();
-
-    if (!replacement) {
+    if (!replacementText.trim()) {
       setError("Replacement text cannot be empty.");
       return;
     }
+
+    const replacementMark: Markup = {
+      id: crypto.randomUUID(),
+      type: "cover",
+      page: selectedText.page,
+      x: selectedText.x,
+      y: selectedText.y,
+      width: Math.min(coverWidth, 100 - selectedText.x),
+      height: Math.min(coverHeight, 100 - selectedText.y),
+      replacement: replacementText,
+      color: editorColor,
+      fontSize: editorFontSize,
+    };
 
     setMarks((previous) => [
       ...previous.filter((mark) => {
@@ -290,24 +323,12 @@ export default function PdfStudio() {
           Math.abs(mark.y - selectedText.y) < 0.5
         );
       }),
-      {
-        id: crypto.randomUUID(),
-        type: "cover",
-        page: selectedText.page,
-        x: selectedText.x,
-        y: selectedText.y,
-        width: Math.max(selectedText.width, 3),
-        height: Math.max(selectedText.height, 2),
-        replacement,
-        color: "#111827",
-        fontSize: Math.max(8, Math.min(fontSize, 14)),
-      },
+      replacementMark,
     ]);
 
-    setMessage("Visual replacement added. Review the page before exporting.");
-    setSelectedText(null);
-    setReplacementText("");
+    setMessage("Replacement updated. Review the cover area before exporting.");
   };
+
 
   const rotatePage = () => {
     setRotations((previous) => ({
@@ -656,6 +677,71 @@ export default function PdfStudio() {
                 maxLength={5000}
                 spellCheck
               />
+
+              <div className="editor-control">
+                <label className="editor-field-label" htmlFor="replacement-size">
+                  Font size: {editorFontSize} pt
+                </label>
+                <input
+                  id="replacement-size"
+                  type="range"
+                  min={6}
+                  max={48}
+                  value={editorFontSize}
+                  onChange={(event) =>
+                    setEditorFontSize(Number(event.target.value))
+                  }
+                />
+              </div>
+
+              <div className="editor-control">
+                <label className="editor-field-label" htmlFor="replacement-color">
+                  Text color
+                </label>
+                <div className="color-picker-row">
+                  <input
+                    id="replacement-color"
+                    type="color"
+                    value={editorColor}
+                    onChange={(event) => setEditorColor(event.target.value)}
+                  />
+                  <span>{editorColor.toUpperCase()}</span>
+                </div>
+              </div>
+
+              <div className="editor-control">
+                <label className="editor-field-label" htmlFor="cover-width">
+                  Cover width: {coverWidth.toFixed(1)}%
+                </label>
+                <input
+                  id="cover-width"
+                  type="range"
+                  min={1}
+                  max={Math.max(1, 100 - (selectedText?.x ?? 0))}
+                  step={0.5}
+                  value={coverWidth}
+                  onChange={(event) =>
+                    setCoverWidth(Number(event.target.value))
+                  }
+                />
+              </div>
+
+              <div className="editor-control">
+                <label className="editor-field-label" htmlFor="cover-height">
+                  Cover height: {coverHeight.toFixed(1)}%
+                </label>
+                <input
+                  id="cover-height"
+                  type="range"
+                  min={0.5}
+                  max={Math.max(0.5, 100 - (selectedText?.y ?? 0))}
+                  step={0.25}
+                  value={coverHeight}
+                  onChange={(event) =>
+                    setCoverHeight(Number(event.target.value))
+                  }
+                />
+              </div>
 
               <div className="editor-field-label">Original text</div>
 
