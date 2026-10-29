@@ -70,6 +70,8 @@ export default function PdfStudio() {
   const [rotations, setRotations] = useState<Record<number, number>>({});
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [textItems, setTextItems] = useState<TextHit[]>([]);
+  const [selectedText, setSelectedText] = useState<TextHit | null>(null);
+  const [replacementText, setReplacementText] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -261,29 +263,50 @@ export default function PdfStudio() {
     setTool("select");
   };
 
-  const replaceText = (hit: TextHit) => {
-    const replacement = window.prompt(
-      `Replace this text overlay:\n\n${hit.text}`,
-      hit.text
-    );
-    if (replacement === null || replacement === hit.text) return;
+  const selectTextForEditing = (hit: TextHit) => {
+    setSelectedText(hit);
+    setReplacementText(hit.text);
+    setMessage(`Selected text: "${hit.text}"`);
+    setError("");
+  };
+
+  const applyTextReplacement = () => {
+    if (!selectedText) return;
+
+    const replacement = replacementText.trim();
+
+    if (!replacement) {
+      setError("Replacement text cannot be empty.");
+      return;
+    }
 
     setMarks((previous) => [
-      ...previous,
+      ...previous.filter((mark) => {
+        if (mark.type !== "cover") return true;
+
+        return !(
+          mark.page === selectedText.page &&
+          Math.abs(mark.x - selectedText.x) < 0.5 &&
+          Math.abs(mark.y - selectedText.y) < 0.5
+        );
+      }),
       {
         id: crypto.randomUUID(),
         type: "cover",
-        page: hit.page,
-        x: hit.x,
-        y: hit.y,
-        width: Math.max(hit.width, 3),
-        height: Math.max(hit.height, 2),
+        page: selectedText.page,
+        x: selectedText.x,
+        y: selectedText.y,
+        width: Math.max(selectedText.width, 3),
+        height: Math.max(selectedText.height, 2),
         replacement,
         color: "#111827",
         fontSize: Math.max(8, Math.min(fontSize, 14)),
       },
     ]);
-    setMessage("Replacement added as an overlay. Review it before exporting.");
+
+    setMessage("Visual replacement added. Review the page before exporting.");
+    setSelectedText(null);
+    setReplacementText("");
   };
 
   const rotatePage = () => {
@@ -488,6 +511,35 @@ export default function PdfStudio() {
               >
                 <canvas ref={canvasRef} className="pdf-canvas" />
 
+                <div className="pdf-text-selection-layer">
+                  {textItems.map((hit, index) => (
+                    <button
+                      key={`${hit.page}-${hit.x}-${hit.y}-${index}`}
+                      type="button"
+                      className={`pdf-text-hit ${
+                        selectedText === hit ? "selected" : ""
+                      }`}
+                      style={{
+                        left: `${hit.x}%`,
+                        top: `${hit.y}%`,
+                        width: `${Math.max(hit.width, 1)}%`,
+                        height: `${Math.max(hit.height, 1.5)}%`,
+                      }}
+                      title={`Edit text: ${hit.text}`}
+                      aria-label={`Edit PDF text: ${hit.text}`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectTextForEditing(hit);
+                      }}
+                    >
+                      {hit.text}
+                    </button>
+                  ))}
+                </div>
+
                 <svg className="drawing-layer" viewBox="0 0 100 100" preserveAspectRatio="none">
                   {pageMarks.map((mark) => {
                     if (mark.type !== "draw" && mark.type !== "highlight") return null;
@@ -570,6 +622,59 @@ export default function PdfStudio() {
             <span>EDITING TOOLS</span>
           </div>
 
+          {selectedText && (
+            <div className="panel-section text-editor-panel">
+              <div className="text-editor-title">
+                <div>
+                  <h3>Edit selected text</h3>
+                  <p>Page {selectedText.page + 1}</p>
+                </div>
+
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Close text editor"
+                  onClick={() => {
+                    setSelectedText(null);
+                    setReplacementText("");
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+
+              <label className="editor-field-label" htmlFor="pdf-replacement">
+                Replacement content
+              </label>
+
+              <textarea
+                id="pdf-replacement"
+                className="replacement-input"
+                value={replacementText}
+                onChange={(event) => setReplacementText(event.target.value)}
+                rows={4}
+                maxLength={5000}
+                spellCheck
+              />
+
+              <div className="editor-field-label">Original text</div>
+
+              <div className="original-text-preview">{selectedText.text}</div>
+
+              <button
+                type="button"
+                className="button primary replacement-apply"
+                onClick={applyTextReplacement}
+              >
+                Apply replacement
+              </button>
+
+              <p className="editor-disclaimer">
+                Applies a visual overlay. The original PDF text remains underneath.
+              </p>
+            </div>
+          )}
+
           <div className="panel-section">
             <h3>Text finder</h3>
             <p>Find selectable text on the current page.</p>
@@ -586,11 +691,11 @@ export default function PdfStudio() {
                     className="search-result"
                     onClick={() => {
                       setPage(hit.page + 1);
-                      replaceText(hit);
+                      selectTextForEditing(hit);
                     }}
                   >
                     <span>{hit.text}</span>
-                    <small>Replace overlay</small>
+                    <small>Edit selected text</small>
                   </button>
                 )) : <p className="muted">No matching text on this page.</p>}
               </div>
